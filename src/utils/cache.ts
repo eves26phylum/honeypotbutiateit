@@ -39,10 +39,10 @@ export const invalidateGuildInfoCache = (guildId: string, redis?: Bun.RedisClien
   }
 }
 
-const weekSeconds = 7 * 24 * 60 * 60;
+const threeDaysSeconds = 3 * 24 * 60 * 60;
 
 export const setDmChannelCache = (userId: string, channelId: string, redis: Bun.RedisClient) => {
-  redis.hsetex("user_dm_channel", "EX", weekSeconds, "FIELDS", 1, userId, channelId);
+  redis.hsetex("user_dm_channel", "EX", threeDaysSeconds, "FIELDS", 1, userId, channelId);
 }
 export const getDmChannelCache = (userId: string, redis: Bun.RedisClient) => {
   return redis.hget("user_dm_channel", userId);

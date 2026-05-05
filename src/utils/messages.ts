@@ -125,8 +125,8 @@ export function logActionMessage(userId: string, honeypotChannelId: string, acti
       .replace(/\{\{user(:ping|:mention)?\}\}/g, `<@${userId}>`)
       .replace(/\{\{action(:text)?\}\}/g, actionText)
       .replace(/\{\{honeypot:channel(:mention|:ping)?\}\}/g, `<#${honeypotChannelId}>`)
-      || `User <@${userId}> was ${actionText} for triggering the honeypot in <#${honeypotChannelId}>.`,
+      || `<@${userId}> was ${actionText} for triggering the honeypot in <#${honeypotChannelId}>\n-# User ID: \`${userId}\``,
   };
 }
 
-export const defaultLogActionMessage = "User {{user:mention}} was {{action:text}} for triggering the honeypot in {{honeypot:channel:mention}}."
+export const defaultLogActionMessage = "{{user:mention}} was {{action:text}} for triggering the honeypot in {{honeypot:channel:mention}}\n-# User ID: `{{user:id}}`";
