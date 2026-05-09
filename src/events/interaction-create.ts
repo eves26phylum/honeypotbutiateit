@@ -452,10 +452,11 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                     return;
                 }
 
-                // honeypot log should contain {{user:ping}}, so its not fully a free for all
-                if (newMessages.log_message && !newMessages.log_message.includes("{{user:ping}}")) {
+                // honeypot log should contain {{user:mention}}, so its not fully a free for all
+                const logMsgMustIncludeOneOf = ["{{user:mention}}", "{{user:ping}}", "{{user:id}}"];
+                if (newMessages.log_message && !logMsgMustIncludeOneOf.some(variable => newMessages.log_message!.includes(variable))) {
                     await api.interactions.reply(interaction.id, interaction.token, {
-                        content: `The log message must contain the variable \`{{user:ping}}\` to show the user that triggered the honeypot. Please include that variable in your log message and try again.\n-# No changes have been saved.`,
+                        content: `The log message must contain the variable \`{{user:mention}}\` to show the user that triggered the honeypot. Please include that variable in your log message and try again.\n-# No changes have been saved.`,
                         allowed_mentions: {},
                         flags: MessageFlags.Ephemeral,
                     });
