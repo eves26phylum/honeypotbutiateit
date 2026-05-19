@@ -47,6 +47,12 @@ export async function initDb() {
       FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
     );
   `;
+  await Promise.all([
+    db`CREATE INDEX IF NOT EXISTS idx_honeypot_events_guild_id ON honeypot_events(guild_id);`,
+    db`CREATE INDEX IF NOT EXISTS idx_honeypot_events_user_id ON honeypot_events(user_id);`,
+    db`CREATE INDEX IF NOT EXISTS idx_honeypot_events_speed ON honeypot_events(timestamp, guild_id);`,
+    db`CREATE INDEX IF NOT EXISTS idx_honeypot_events_ts_guild ON honeypot_events(timestamp, guild_id);`,
+  ]);
 }
 
 export async function getConfig(guild_id: string): Promise<HoneypotConfig | null> {
@@ -120,36 +126,6 @@ export async function getStats(): Promise<{ totalGuilds: number; totalModerated:
   };
 }
 
-export async function getFullStats(): Promise<{ guilds: number; moderations: number; last7dModerations: number; last7dEngagedGuilds: number; dailyStats: { date: string; moderations: number; engagedGuilds: number; }[]; }> {
-  const result = await db`SELECT 
-    (SELECT COUNT(*) FROM honeypot_config) AS config_count, 
-    (SELECT COUNT(*) FROM honeypot_events) AS event_count,
-    (SELECT COUNT(*) FROM honeypot_events WHERE timestamp >= datetime('now', '-7 days')) AS last_7d_event_count,
-    (SELECT COUNT(DISTINCT guild_id) FROM honeypot_events WHERE timestamp >= datetime('now', '-7 days')) AS last_7d_engaged_guilds;
-  `;
-  const dailyStatsResult = await db`SELECT 
-      date(timestamp) as date, 
-      COUNT(*) as moderations, 
-      COUNT(DISTINCT guild_id) as engaged_guilds
-    FROM honeypot_events
-    WHERE timestamp >= datetime('now', '-14 days')
-      AND timestamp < date('now')
-    GROUP BY date(timestamp)
-    ORDER BY date(timestamp) ASC;
-  `;
-  return {
-    guilds: result[0].config_count || 0 as number,
-    moderations: result[0].event_count || 0 as number,
-    last7dModerations: result[0].last_7d_event_count || 0 as number,
-    last7dEngagedGuilds: result[0].last_7d_engaged_guilds || 0 as number,
-    dailyStats: dailyStatsResult.map((row: any) => ({
-      date: row.date,
-      moderations: row.moderations,
-      engagedGuilds: row.engaged_guilds,
-    })),
-  }
-}
-
 export async function getUserModeratedCount(user_id: string): Promise<number> {
   const [row] = await db`SELECT COUNT(*) as count FROM honeypot_events WHERE user_id = ${user_id}`;
   return row.count as number;
@@ -195,4 +171,78 @@ export async function setHoneypotMessages(guild_id: string, messages: { warning_
       dm_message=excluded.dm_message,
       log_message=excluded.log_message
   `;
+}
+
+
+export async function getFullStats(): Promise<{
+  guilds: number;
+  moderations: number;
+  last7dModerations: number;
+  last7dEngagedGuilds: number;
+  dailyStats: { date: string; moderations: number; engagedGuilds: number; }[];
+}> {
+  const now = new Date();
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(now.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString().replace('T', ' ').substring(0, 19);
+
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(now.getDate() - 14);
+  const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().replace('T', ' ').substring(0, 19);
+
+  const todayStartStr = now.toISOString().substring(0, 10) + ' 00:00:00';
+
+  const metaPromise = db`
+    SELECT 
+      (SELECT COUNT(*) FROM honeypot_config) AS guilds,
+      (SELECT rowid FROM honeypot_events ORDER BY rowid DESC LIMIT 1) AS moderations;
+  `;
+
+  const dataPromise = db`
+    SELECT timestamp, guild_id
+    FROM honeypot_events
+    WHERE timestamp >= ${fourteenDaysAgoStr}
+      AND timestamp < ${todayStartStr}
+    ORDER BY timestamp ASC;
+  `;
+
+  const [[meta], rawRows] = await Promise.all([metaPromise, dataPromise]);
+
+  let last7dModerations = 0;
+  const last7dGuilds = new Set<string>();
+  const dailyMap = new Map<string, { moderations: number; guilds: Set<string> }>();
+
+  for (let i = 0; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    const ts = row.timestamp;
+    const dateStr = ts.substring(0, 10);
+    const guildId = row.guild_id;
+
+    if (ts >= sevenDaysAgoStr) {
+      last7dModerations++;
+      if (guildId) last7dGuilds.add(guildId);
+    }
+
+    if (!dailyMap.has(dateStr)) {
+      dailyMap.set(dateStr, { moderations: 0, guilds: new Set() });
+    }
+    const day = dailyMap.get(dateStr)!;
+    day.moderations++;
+    if (guildId) day.guilds.add(guildId);
+  }
+
+  const dailyStats = Array.from(dailyMap.entries()).map(([date, data]) => ({
+    date,
+    moderations: data.moderations,
+    engagedGuilds: data.guilds.size
+  }));
+
+  return {
+    guilds: Number(meta?.guilds || 0),
+    moderations: Number(meta?.moderations || 0),
+    last7dModerations,
+    last7dEngagedGuilds: last7dGuilds.size,
+    dailyStats
+  };
 }
