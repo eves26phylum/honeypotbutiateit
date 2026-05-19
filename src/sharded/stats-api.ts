@@ -14,7 +14,9 @@ async function getStats() {
     if (cacheResult && (now - cacheTimestamp < cacheDuration)) {
         return cacheResult;
     }
+    console.time("getStats");
     const result = await getFullStats();
+    console.timeEnd("getStats");
     cacheResult = result;
     cacheTimestamp = now;
     return result;
@@ -74,13 +76,19 @@ const server = Bun.serve({
         },
     },
 
-    // @ts-expect-error, we don't care about inbound messages
     websocket: {
+        maxPayloadLength: 1,
+        backpressureLimit: 1,
+        closeOnBackpressureLimit: true,
+        idleTimeout: 600,
         open: async (ws) => {
             ws.subscribe("stats_update")
             const stats = await getStats();
             ws.sendText(JSON.stringify(stats))
-        }
+        },
+        close: (ws) => ws.unsubscribe("stats_update"),
+        message: () => { },
+        drain: () => { },
     },
 })
 
@@ -96,7 +104,9 @@ function scheduleNextPublish() {
     const msUntilNext = (nextInterval * 1000) - millis;
     statsUpdateTimer = setTimeout(async () => {
         if (pendingStatsUpdate) {
+            console.time("getStats for publish");
             const stats = await getFullStats();
+            console.timeEnd("getStats for publish");
             cacheResult = stats;
             cacheTimestamp = Date.now();
             server.publish("stats_update", JSON.stringify(stats));
