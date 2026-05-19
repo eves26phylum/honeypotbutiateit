@@ -69,15 +69,15 @@ const onMessage = async (
 
         // let forwardPromise = null as null | Promise<any>;
         // if (config.experiments.includes("forward-message") && config.log_channel_id && messageId) {
-            // // intentionally not awaited as in theory we can do DM and this at same time (and avoid extra wait-time)
-            // forwardPromise = api.channels.createMessage(config.log_channel_id, {
-            //     message_reference: {
-            //         type: MessageReferenceType.Forward,
-            //         channel_id: channelId,
-            //         message_id: messageId,
-            //         guild_id: guildId,
-            //     }
-            // }).catch(err => console.log(`Failed to forward message to log channel: ${err}`));
+        //     // intentionally not awaited as in theory we can do DM and this at same time (and avoid extra wait-time)
+        //     forwardPromise = api.channels.createMessage(config.log_channel_id, {
+        //         message_reference: {
+        //             type: MessageReferenceType.Forward,
+        //             channel_id: channelId,
+        //             message_id: messageId,
+        //             guild_id: guildId,
+        //         }
+        //     }).catch(err => console.log(`Failed to forward message to log channel: ${err}`));
         // }
 
         const customMessages = await db.getHoneypotMessages(guildId);
@@ -141,10 +141,10 @@ const onMessage = async (
 
                 // https://github.com/discord/discord-api-docs/issues/8360
                 // sometimes banning doesn't actually remove messages - maybe doing it again later helps
-                try {
-                    // dont wait on this for too long
-                    const timeout = AbortSignal.timeout(15_000);
+                (async () => {
                     await Bun.sleep(10_000)
+                    // dont wait on this for too long
+                    const timeout = AbortSignal.timeout(25_000);
                     await api.guilds.banUser(
                         guildId,
                         userId,
@@ -156,9 +156,9 @@ const onMessage = async (
                         userId,
                         { reason: "Triggered honeypot -> softban (kick) 4/4", signal: timeout }
                     );
-                } catch (err) {
-                    console.log(`Failed to double softban user (probably not an issue): ${err}`);
-                }
+                })().catch(err =>
+                    console.log(`Failed to double softban user (probably not an issue): ${err}`)
+                );
             } else {
                 console.error("Unknown action in honeypot config:", config.action);
                 failed = true;
