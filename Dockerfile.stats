@@ -1,25 +1,30 @@
 # Build stage
-FROM oven/bun:slim AS builder
+FROM oven/bun:alpine AS builder
 
 WORKDIR /app
 
 COPY package.json bun.lock ./
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile && bunx bun@latest --version
+# RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile && bunx bun@latest --version
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile 
 
 COPY src ./src
-RUN --mount=type=cache,target=/root/.bun/install/cache bunx bun@latest --bun run build:stats:standalone
+# RUN --mount=type=cache,target=/root/.bun/install/cache bunx bun@latest --bun run build:stats:standalone
+RUN bun run build:stats:standalone
 
 # Production stage
-FROM debian:bookworm-slim AS production
+FROM alpine:latest AS production
 
 WORKDIR /app
 
-RUN groupadd -g 10001 botgroup && useradd -u 10001 -g botgroup -m -s /sbin/nologin botuser
+RUN apk add --no-cache libstdc++ libgcc
+
+RUN addgroup -g 10001 botgroup && adduser -D -u 10001 -G botgroup -s /sbin/nologin botuser
 
 COPY --from=builder --chown=botuser:botgroup /app/dist/stats-api ./stats-api
 
 USER botuser
 
+EXPOSE 3000
 ENV NODE_ENV=production
 
 CMD ["./stats-api", "--title=Honeypot-Stats"]

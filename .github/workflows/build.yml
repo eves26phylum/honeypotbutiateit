@@ -16,6 +16,7 @@ jobs:
       main: ${{ steps.filter.outputs.main }}
       events: ${{ steps.filter.outputs.events }}
       ws: ${{ steps.filter.outputs.ws }}
+      stats: ${{ steps.filter.outputs.stats }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +53,7 @@ jobs:
     name: Build Docker (${{ matrix.platform_suffix }})
     runs-on: ${{ matrix.runner }}
     needs: changes
-    if: github.ref == 'refs/heads/main' && (needs.changes.outputs.main == 'true' || needs.changes.outputs.events == 'true' || needs.changes.outputs.ws == 'true' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && (needs.changes.outputs.main == 'true' || needs.changes.outputs.events == 'true' || needs.changes.outputs.ws == 'true' || needs.changes.outputs.stats == 'true' || github.event_name == 'workflow_dispatch')
     strategy:
       matrix:
         include:

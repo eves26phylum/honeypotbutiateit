@@ -83,7 +83,7 @@ services:
        - redis
      environment:
        DATABASE_URL: ${DATABASE_URL:-sqlite:///data/honeypot.sqlite}
-       DATABASE_READONLY: true
+       DATABASE_READONLY: "true"
        NODE_ENV: production
        FORCE_COLOR: 1
        REDIS_URL: redis+unix:///redis/redis.sock
@@ -97,7 +97,7 @@ services:
         - redis:/redis
      stop_grace_period: 20s
      healthcheck:
-       test: ["CMD", "curl", "-f", "http://localhost:3000"]
+       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
        interval: 30s
        timeout: 5s
        retries: 3
@@ -107,9 +107,10 @@ services:
        resources:
          limits:
            memory: 35M
-           cpu: 0.5
+           cpus: "0.5"
          reservations:
            memory: 10M
+           cpus: "0.1"
        update_config:
          order: start-first
          failure_action: rollback

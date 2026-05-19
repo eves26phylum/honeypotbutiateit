@@ -49,7 +49,7 @@ const server = Bun.serve({
                         <pre id="stats">Loading...</pre>
                         <script>
                             const statsEl = document.getElementById("stats");
-                            const ws = new WebSocket("ws://" + location.host + "/ws");
+                            const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
                             ws.onmessage = (event) => {
                                 const data = JSON.parse(event.data);
                                 statsEl.textContent = JSON.stringify(data, null, 2);
@@ -105,6 +105,12 @@ function scheduleNextPublish() {
 }
 
 redisPubSub.subscribe(["guild_count", "moderate_event"], async (message) => {
+    if (server.subscriberCount("stats_update") === 0) {
+        cacheResult = null;
+        cacheTimestamp = 0;
+        pendingStatsUpdate = false;
+        return;
+    }
     pendingStatsUpdate = true;
     scheduleNextPublish();
 });
