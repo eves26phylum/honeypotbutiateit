@@ -1,5 +1,7 @@
 
-import { getFullStats } from "../utils/db";
+import { getFullStats, initDb } from "../utils/db";
+
+await initDb();
 
 const redisPubSub = new Bun.RedisClient(process.env.REDIS_URL!);
 
@@ -26,7 +28,8 @@ const server = Bun.serve({
                 const stats = await getStats();
                 return new Response(JSON.stringify(stats), {
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*",
                     }
                 });
             }
