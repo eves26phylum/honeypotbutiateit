@@ -136,7 +136,7 @@ function shouldBroadcastEvent(event: GatewayDispatchPayload): boolean | Promise<
         const channelId = event.d.channel_id;
         return redis.hget("discord_ws_config:guild-channels", guildId).then((channels) => {
             if (!channels) return true;
-            const channelIds = channels.split(",") ?? [];
+            const channelIds = channels.split(",");
             return channelIds.includes(channelId);
         });
     };
@@ -173,23 +173,26 @@ const checkForResharding = async () => {
             await newManager.connect();
 
             // wait for all new shards to be ready, then kill old manager
-            const checkInterval = setInterval(() => {
-                if (shardsConnected.size === newShardCount) {
-                    clearInterval(checkInterval);
+            while (shardsConnected.size !== newShardCount) {
+                await Bun.sleep(1000);
+            }
 
-                    console.info(`All ${newShardCount} shards connected, transfering over managers...`);
-                    const newReshardedId = reshardedId + 1;
-                    newManager.addListener(WebSocketShardEvents.Dispatch, dispatchEvent.bind(null, newReshardedId));
-                    newManager.removeListener(WebSocketShardEvents.Dispatch, dispatchEvent2);
-                    reshardedId = newReshardedId;
-                    manager.removeAllListeners(WebSocketShardEvents.Dispatch);
-                    manager.destroy();
-                    manager = newManager;
-                    delete sessionInfoCache[shardCount]
-                    shardCount = newShardCount;
-                    isResharding = null;
-                }
-            }, 1000);
+            // wait a bit more to ensure that they are all are properly ready,
+            // and not still sending GUILD_CREATE spam and thus not actually sending the real events on time
+            await Bun.sleep(60_000);
+
+            console.info(`All ${newShardCount} shards connected, transfering over managers...`);
+            const newReshardedId = reshardedId + 1;
+            newManager.addListener(WebSocketShardEvents.Dispatch, dispatchEvent.bind(null, newReshardedId));
+            newManager.removeListener(WebSocketShardEvents.Dispatch, dispatchEvent2);
+            reshardedId = newReshardedId;
+            manager.removeAllListeners(WebSocketShardEvents.Dispatch);
+            manager.destroy();
+            manager = newManager;
+            delete sessionInfoCache[shardCount]
+            shardCount = newShardCount;
+            isResharding = null;
+
         }
     } catch (err) {
         console.error(`Error checking shard count: ${err}`);

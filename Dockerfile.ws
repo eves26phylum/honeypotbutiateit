@@ -14,7 +14,11 @@ FROM debian:bookworm-slim AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/dist/discord-ws ./discord-ws
+RUN groupadd -g 10001 botgroup && useradd -u 10001 -g botgroup -m -s /sbin/nologin botuser
+
+COPY --from=builder --chown=botuser:botgroup /app/dist/discord-ws ./discord-ws
+
+USER botuser
 
 ENV NODE_ENV=production
 
