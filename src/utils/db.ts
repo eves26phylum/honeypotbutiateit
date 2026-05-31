@@ -121,10 +121,10 @@ export async function unsetHoneypotMsgs(guildId: string, messageIds: string[]) {
 }
 
 export async function getStats(): Promise<{ totalGuilds: number; totalModerated: number; }> {
-  const result = await db`SELECT (SELECT COUNT(*) FROM honeypot_config) AS config_count, (SELECT COUNT(*) FROM honeypot_events) AS event_count;`;
+  const [result] = await db`SELECT (SELECT COUNT(*) FROM honeypot_config) AS config_count, (SELECT COUNT(*) FROM honeypot_events) AS event_count;`;
   return {
-    totalGuilds: result[0].config_count || 0 as number,
-    totalModerated: result[0].event_count || 0 as number,
+    totalGuilds: result.config_count,
+    totalModerated: result.event_count,
   };
 }
 
@@ -183,68 +183,56 @@ export async function getFullStats(): Promise<{
   last7dEngagedGuilds: number;
   dailyStats: { date: string; moderations: number; engagedGuilds: number; }[];
 }> {
-  const now = new Date();
+  const sqlAdapter = db.options.adapter || "sqlite";
 
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(now.getDate() - 7);
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString().replace('T', ' ').substring(0, 19);
+  // Rolling window of literal 7d
+  const last7dWhere = {
+    sqlite: db`timestamp >= datetime('now', '-7 days')`,
+    postgres: db`timestamp >= NOW() - INTERVAL '7 days' `,
+    mysql: db`timestamp >= NOW() - INTERVAL 7 DAY `,
+    mariadb: db`timestamp >= NOW() - INTERVAL 7 DAY`,
+  }[sqlAdapter] || db`1=1`;
 
-  const fourteenDaysAgo = new Date();
-  fourteenDaysAgo.setDate(now.getDate() - 14);
-  const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().replace('T', ' ').substring(0, 19);
-
-  const todayStartStr = now.toISOString().substring(0, 10) + ' 00:00:00';
-
-  const metaPromise = db`
-    SELECT 
+  const metaPromise = await db`
+    SELECT
       (SELECT COUNT(*) FROM honeypot_config) AS guilds,
-      (SELECT COUNT(*) FROM honeypot_events) AS moderations
+      (SELECT COUNT(*) FROM honeypot_events) AS moderations,
+      (SELECT COUNT(*) FROM honeypot_events WHERE ${last7dWhere}) AS last7dModerations,
+      (SELECT COUNT(DISTINCT guild_id) FROM honeypot_events WHERE ${last7dWhere}) AS last7dEngagedGuilds
   `;
 
-  const dataPromise = db`
-    SELECT timestamp, guild_id
+  // Rounded window of 14d (no partial days)
+  const last14dWhere = {
+    sqlite: db`timestamp >= datetime('now', '-14 days', 'start of day')
+             AND timestamp < datetime('now', 'start of day')`,
+    postgres: db`timestamp >= CURRENT_DATE - INTERVAL '14 days' AND timestamp < CURRENT_DATE`,
+    mysql: db`timestamp >= CURDATE() - INTERVAL 14 DAY
+             AND timestamp < CURDATE()`,
+    mariadb: db`timestamp >= CURDATE() - INTERVAL 14 DAY
+               AND timestamp < CURDATE()`,
+  }[sqlAdapter] || db`1=1`;
+
+  const dailyRowPromise = await db`
+    SELECT DATE(timestamp) AS date,
+      COUNT(*) AS moderations,
+      COUNT(DISTINCT guild_id) AS engagedGuilds
     FROM honeypot_events
-    WHERE timestamp >= ${fourteenDaysAgoStr}
-      AND timestamp < ${todayStartStr}
-    ORDER BY timestamp ASC;
+    WHERE ${last14dWhere}
+    GROUP BY DATE(timestamp)
+    ORDER BY DATE(timestamp) ASC;
   `;
 
-  const [[meta], rawRows] = await Promise.all([metaPromise, dataPromise]);
-
-  let last7dModerations = 0;
-  const last7dGuilds = new Set<string>();
-  const dailyMap = new Map<string, { moderations: number; guilds: Set<string> }>();
-
-  for (let i = 0; i < rawRows.length; i++) {
-    const row = rawRows[i];
-    const ts = row.timestamp;
-    const dateStr = ts.substring(0, 10);
-    const guildId = row.guild_id;
-
-    if (ts >= sevenDaysAgoStr) {
-      last7dModerations++;
-      if (guildId) last7dGuilds.add(guildId);
-    }
-
-    if (!dailyMap.has(dateStr)) {
-      dailyMap.set(dateStr, { moderations: 0, guilds: new Set() });
-    }
-    const day = dailyMap.get(dateStr)!;
-    day.moderations++;
-    if (guildId) day.guilds.add(guildId);
-  }
-
-  const dailyStats = Array.from(dailyMap.entries()).map(([date, data]) => ({
-    date,
-    moderations: data.moderations,
-    engagedGuilds: data.guilds.size
-  }));
+  const [[metaRow], dailyRows] = await Promise.all([metaPromise, dailyRowPromise]);
 
   return {
-    guilds: Number(meta?.guilds || 0),
-    moderations: Number(meta?.moderations || 0),
-    last7dModerations,
-    last7dEngagedGuilds: last7dGuilds.size,
-    dailyStats
+    guilds: metaRow.guilds,
+    moderations: metaRow.moderations,
+    last7dModerations: metaRow.last7dModerations,
+    last7dEngagedGuilds: metaRow.last7dEngagedGuilds,
+    dailyStats: dailyRows.map((row: any) => ({
+      date: row.date,
+      moderations: row.moderations,
+      engagedGuilds: row.engagedGuilds,
+    })),
   };
 }
