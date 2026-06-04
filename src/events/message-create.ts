@@ -143,6 +143,7 @@ const onMessage = async (
                     { reason: "Triggered honeypot -> softban (kick) 1/2" }
                 );
                 try {
+                    await Bun.sleep(250);
                     await api.guilds.unbanUser(
                         guildId,
                         userId,
@@ -150,7 +151,26 @@ const onMessage = async (
                     );
                 } catch (err) {
                     console.log(`Failed to unban user after ban: ${err}`);
-                    failed = "unban";
+                    // maybe discord hasn't banned yet and is throwing unknown ban, so try again after a short wait
+                    if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) {
+                        try {
+                            await Bun.sleep(1_250);
+                            await api.guilds.unbanUser(
+                                guildId,
+                                userId,
+                                { reason: "Triggered honeypot -> softban (kick) 2/2" }
+                            );
+                        } catch (err) {
+                            console.log(`Failed to unban user after retry: ${err}`);
+                            if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) {
+                                // If its still throwing unknown ban, then the user is likely already unbanned by some external force
+                            } else {
+                                failed = "unban";
+                            }
+                        }
+                    } else {
+                        failed = "unban";
+                    }
                 }
 
                 // https://github.com/discord/discord-api-docs/issues/8360
