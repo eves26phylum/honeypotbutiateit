@@ -45,157 +45,55 @@ const autoincrementSyntax = db.options.adapter === "sqlite" ? db`AUTOINCREMENT` 
 
 const migrations: Migration[] = [
   {
-    version: 1,
+    version: 3,
     name: "initial",
     up: async (tx) => {
       await tx`
 CREATE TABLE IF NOT EXISTS honeypot_config (
-  guild_id TEXT PRIMARY KEY,
-  honeypot_channel_id TEXT,
-  honeypot_msg_id TEXT,
-  log_channel_id TEXT,
-  action TEXT NOT NULL DEFAULT 'softban',
-  experiments VARCHAR(255) DEFAULT '[]'
-);
-CREATE TABLE IF NOT EXISTS honeypot_events (
-  id INTEGER PRIMARY KEY ${autoincrementSyntax},
-  guild_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS honeypot_messages (
-  guild_id TEXT PRIMARY KEY,
-  warning_message TEXT,
-  dm_message TEXT,
-  log_message TEXT,
-  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS honeypot_reinvite (
-  guild_id TEXT PRIMARY KEY,
-  invite TEXT,
-  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_honeypot_events_guild_id ON honeypot_events(guild_id);
-CREATE INDEX IF NOT EXISTS idx_honeypot_events_user_id ON honeypot_events(user_id);
-CREATE INDEX IF NOT EXISTS idx_honeypot_events_speed ON honeypot_events(timestamp, guild_id);
-`;
-    },
-  },
-  {
-    version: 2,
-    name: "honeypot_channels",
-    up: async (tx) => {
-      await tx`
-CREATE TABLE IF NOT EXISTS honeypot_channels (
-  channel_id TEXT PRIMARY KEY,
-  guild_id TEXT NOT NULL,
-  msg_id TEXT,
-  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
-);
-
-ALTER TABLE honeypot_events ADD COLUMN channel_id TEXT;
-`;
-      await tx`
-INSERT OR IGNORE INTO honeypot_channels (guild_id, channel_id, msg_id)
-SELECT guild_id, honeypot_channel_id, honeypot_msg_id
-FROM honeypot_config
-WHERE honeypot_channel_id IS NOT NULL;
-`;
-      await tx`
-CREATE INDEX IF NOT EXISTS idx_honeypot_channels_channel_id ON honeypot_channels(channel_id);
-CREATE INDEX IF NOT EXISTS idx_honeypot_channels_guild_id ON honeypot_channels(guild_id);
-CREATE INDEX IF NOT EXISTS idx_honeypot_events_channel_id ON honeypot_events(channel_id);
-
-ALTER TABLE honeypot_config DROP COLUMN honeypot_channel_id;
-ALTER TABLE honeypot_config DROP COLUMN honeypot_msg_id;
-`;
-      await tx`
-UPDATE honeypot_events
-SET channel_id = (
-  SELECT channel_id FROM honeypot_channels
-  WHERE honeypot_channels.guild_id = honeypot_events.guild_id
-)
-WHERE channel_id IS NULL
-AND EXISTS (
-  SELECT 1 FROM honeypot_channels
-  WHERE honeypot_channels.guild_id = honeypot_events.guild_id
-);`;
-
-    },
-  },
-  {
-    version: 3,
-    name: "snowflakes_to_bigint",
-    up: async (tx) => {
-      await tx`
-CREATE TABLE IF NOT EXISTS hc_new (
   guild_id BIGINT PRIMARY KEY,
   log_channel_id BIGINT,
   action TEXT NOT NULL DEFAULT 'softban',
   experiments VARCHAR(255) DEFAULT '[]'
 );
 
-CREATE TABLE IF NOT EXISTS hch_new (
+CREATE TABLE IF NOT EXISTS honeypot_channels (
   channel_id BIGINT PRIMARY KEY,
   guild_id BIGINT NOT NULL,
   msg_id BIGINT,
-  FOREIGN KEY (guild_id) REFERENCES hc_new(guild_id) ON DELETE CASCADE
+  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS he_new (
+CREATE TABLE IF NOT EXISTS honeypot_events (
   id INTEGER PRIMARY KEY ${autoincrementSyntax},
   guild_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
   channel_id BIGINT,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (guild_id) REFERENCES hc_new(guild_id) ON DELETE CASCADE,
-  FOREIGN KEY (channel_id) REFERENCES hch_new(channel_id) ON DELETE SET NULL
+  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE,
+  FOREIGN KEY (channel_id) REFERENCES honeypot_channels(channel_id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS hm_new (
+CREATE TABLE IF NOT EXISTS honeypot_messages (
   guild_id BIGINT PRIMARY KEY,
   warning_message TEXT,
   dm_message TEXT,
   log_message TEXT,
-  FOREIGN KEY (guild_id) REFERENCES hc_new(guild_id) ON DELETE CASCADE
+  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS hr_new (
+CREATE TABLE IF NOT EXISTS honeypot_reinvite (
   guild_id BIGINT PRIMARY KEY,
   invite TEXT,
-  FOREIGN KEY (guild_id) REFERENCES hc_new(guild_id) ON DELETE CASCADE
+  FOREIGN KEY (guild_id) REFERENCES honeypot_config(guild_id) ON DELETE CASCADE
 );
-`;
-      await tx`INSERT INTO hc_new SELECT CAST(guild_id AS BIGINT), CAST(log_channel_id AS BIGINT), action, experiments FROM honeypot_config;`
-      await tx`INSERT INTO hch_new SELECT CAST(channel_id AS BIGINT), CAST(guild_id AS BIGINT), CAST(msg_id AS BIGINT) FROM honeypot_channels;`
-      await tx`INSERT INTO he_new SELECT id, CAST(guild_id AS BIGINT), CAST(user_id AS BIGINT), CAST(channel_id AS BIGINT), timestamp FROM honeypot_events;`
-      await tx`INSERT INTO hm_new SELECT CAST(guild_id AS BIGINT), warning_message, dm_message, log_message FROM honeypot_messages;`
-      await tx`INSERT INTO hr_new SELECT CAST(guild_id AS BIGINT), invite FROM honeypot_reinvite;`
 
-      await tx`
-DROP TABLE honeypot_config;
-DROP TABLE honeypot_channels;
-DROP TABLE honeypot_events;
-DROP TABLE honeypot_messages;
-DROP TABLE honeypot_reinvite;
-
-ALTER TABLE hc_new RENAME TO honeypot_config;
-ALTER TABLE hch_new RENAME TO honeypot_channels;
-ALTER TABLE he_new RENAME TO honeypot_events;
-ALTER TABLE hm_new RENAME TO honeypot_messages;
-ALTER TABLE hr_new RENAME TO honeypot_reinvite;
-`;
-
-      await tx`
 CREATE INDEX IF NOT EXISTS idx_honeypot_channels_channel_id ON honeypot_channels(channel_id);
 CREATE INDEX IF NOT EXISTS idx_honeypot_channels_guild_id ON honeypot_channels(guild_id);
 CREATE INDEX IF NOT EXISTS idx_honeypot_events_guild_id ON honeypot_events(guild_id);
 CREATE INDEX IF NOT EXISTS idx_honeypot_events_user_id ON honeypot_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_honeypot_events_channel_id ON honeypot_events(guild_id, channel_id);
 CREATE INDEX IF NOT EXISTS idx_honeypot_events_stats ON honeypot_events(timestamp, guild_id);
-    `;
+`;
     },
   }
 ];
