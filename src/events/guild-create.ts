@@ -1,4 +1,4 @@
-import { ButtonStyle, ChannelType, GatewayDispatchEvents, MessageFlags, ComponentType, type GatewayGuildCreateDispatchData, type APIRole, PermissionFlagsBits, RESTJSONErrorCodes, GuildFeature } from "discord-api-types/v10";
+import { ButtonStyle, ChannelType, GatewayDispatchEvents, MessageFlags, ComponentType, type GatewayGuildCreateDispatchData, type APIRole, PermissionFlagsBits, RESTJSONErrorCodes, GuildFeature, OverwriteType } from "discord-api-types/v10";
 import type { EventHandler } from "./events";
 import type { API } from "@discordjs/core";
 import type { API as API2 } from "@discordjs/core/http-only";
@@ -27,7 +27,7 @@ const handler: EventHandler<GatewayDispatchEvents.GuildCreate> = {
             let msgId = null as null | string;
             let setupSuccess = false;
             try {
-                const { id: channId, new: isNewChannel } = await findOrCreateHoneypotChannel(api, guild);
+                const { id: channId, new: isNewChannel } = await findOrCreateHoneypotChannel(api, guild, applicationId);
                 channelId = channId;
                 msgId = await postWarning(api, channelId, applicationId, "softban", 0);
                 setupSuccess = true;
@@ -85,14 +85,28 @@ const handler: EventHandler<GatewayDispatchEvents.GuildCreate> = {
     }
 };
 
-async function findOrCreateHoneypotChannel(api: API | API2, guild: GatewayGuildCreateDispatchData): Promise<{ id: string, new?: true | undefined }> {
+async function findOrCreateHoneypotChannel(api: API | API2, guild: GatewayGuildCreateDispatchData, applicationId: string): Promise<{ id: string, new?: true | undefined }> {
     const channel = guild.channels.find((c) => normalizeText(c.name) === "honeypot" && c.type === ChannelType.GuildText);
     if (channel) return { id: channel.id };
+
+    const everyoneRole = guild.roles.find(r => r.id === guild.id);
+    const thisBotRole = guild.roles.find(r => r.tags?.bot_id === applicationId);
+
+    const permsWanted = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages;
+    const everyoneHasPerms = hasPermission(BigInt(everyoneRole?.permissions ?? 0), permsWanted);
+    const botHasPerms = hasPermission(BigInt(thisBotRole?.permissions ?? 0), permsWanted);
 
     const newChannel = await api.guilds.createChannel(guild.id, {
         name: `h${obfuscateText("oneypot", 0.3)}`,
         type: ChannelType.GuildText,
         position: guild.channels.length + 1,
+        permission_overwrites: (!everyoneHasPerms && botHasPerms) ? [
+            {
+                id: guild.id,
+                allow: permsWanted.toString(),
+                type: OverwriteType.Role,
+            }
+        ] : undefined
     }, {
         reason: "Honeypot channel for bot",
     });
@@ -190,20 +204,20 @@ async function checkSetupAndWarn(api: API | API2, channelId: string, application
     const anyRoleHasMostMembers = guild.member_count > 50 ? Object.values(roleCounts).some(count => count >= memberCount * 0.65) : false;
 
     // also check if they even invited the bot with correct permissions, because if not then it can’t ban anyone
-    const thisBot = guild.members.find(m => m.user.id === applicationId);
-    const botPermissions = thisBot ? getPermissionsForMember(guild.roles, thisBot.roles) : BigInt(PermissionFlagsBits.Administrator);
+    const thisBotRole = guild.roles.find(r => r.tags?.bot_id === applicationId);
+    const botPermissions = BigInt(thisBotRole?.permissions ?? 0);
     const canBan = hasPermission(botPermissions, PermissionFlagsBits.BanMembers);
 
-    // also check if this channel can be seen by everyone (ie view channel permission for @everyone role), because if not then it defeats the purpose of honeypot
-    // since we just made the channel, we know there cant be any overides, so we can just check the everyone role permissions
-    const everyoneRole = guild.roles.find(r => r.id === guild.id);
-    const canEveryoneViewChannel = everyoneRole?.permissions ? hasPermission(BigInt(everyoneRole?.permissions), PermissionFlagsBits.ViewChannel) : true;
+    // // also check if this channel can be seen by everyone (ie view channel permission for @everyone role), because if not then it defeats the purpose of honeypot
+    // // since we just made the channel, we know there cant be any overides, so we can just check the everyone role permissions
+    // const everyoneRole = guild.roles.find(r => r.id === guild.id);
+    // const canEveryoneViewChannel = everyoneRole?.permissions ? hasPermission(BigInt(everyoneRole?.permissions), PermissionFlagsBits.ViewChannel) : true;
 
-    if (anyRoleHasMostMembers || !canBan || !canEveryoneViewChannel) {
+    if (anyRoleHasMostMembers || !canBan /*|| !canEveryoneViewChannel*/) {
         let content = "";
         if (anyRoleHasMostMembers) content += "\n- There is a role that’s higher than the bot’s with >65% of the members";
         if (!canBan) content += "\n- The bot doesn’t have permission to ban members, which means it can’t softban anyone";
-        if (!canEveryoneViewChannel) content += "\n- The @everyone role can’t view the honeypot channel, which means most members can’t send any messages here";
+        // if (!canEveryoneViewChannel) content += "\n- The @everyone role can’t view the honeypot channel, which means most members can’t send any messages here";
 
         const msg = await api.channels.createMessage(channelId!, {
             components: [
@@ -239,16 +253,6 @@ async function checkSetupAndWarn(api: API | API2, channelId: string, application
 
         if (redis) await addToDeleteMessageCache(channelId, msg.id, redis);
     }
-}
-
-function getPermissionsForMember(roles: APIRole[], memberRoles: string[]) {
-    let permissions = BigInt(0);
-    for (const role of roles) {
-        if (memberRoles.includes(role.id)) {
-            permissions |= BigInt(role.permissions);
-        }
-    }
-    return permissions;
 }
 
 function hasPermission(permissions: bigint, permissionBit: bigint) {
