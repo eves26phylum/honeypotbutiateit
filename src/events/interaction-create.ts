@@ -8,10 +8,8 @@ import { CUSTOM_EMOJI, CUSTOM_EMOJI_ID, HAS_MESSAGE_INTENT } from "../utils/cons
 import { getDmChannelCache, getGuildInfo, removeFromDeleteMessageCache, setDmChannelCache, setSubscribedChannelCache } from "../utils/cache";
 import { DiscordAPIError } from "@discordjs/rest";
 import { styleText } from "node:util";
-import { getDiscordDate } from "../utils/tools";
+import { getDiscordDate, hasPermission } from "../utils/tools";
 import type { CreateInteractionResponseOptions } from "@discordjs/core";
-
-const hasPermission = (permissions: bigint, permission: bigint) => (permissions & permission) === permission;
 
 const badWords = getBadWords() as any as Awaited<ReturnType<typeof getBadWords>>;
 const containsBadWord = (text: string): string | null => {

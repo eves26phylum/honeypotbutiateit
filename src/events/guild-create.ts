@@ -9,6 +9,7 @@ import { getRoleMemberCounts } from "../utils/discord-api";
 import { DiscordAPIError } from "@discordjs/rest";
 import lookalikeChars from "../utils/lookalike-chars.yaml";
 import { styleText } from "node:util";
+import { hasPermission } from "../utils/tools";
 
 const handler: EventHandler<GatewayDispatchEvents.GuildCreate> = {
     event: GatewayDispatchEvents.GuildCreate,
@@ -255,9 +256,6 @@ async function checkSetupAndWarn(api: API | API2, channelId: string, application
     }
 }
 
-function hasPermission(permissions: bigint, permissionBit: bigint) {
-    return (permissions & permissionBit) === permissionBit || (permissions & PermissionFlagsBits.Administrator) === permissionBit;
-}
 
 const lookalikesData = lookalikeChars as Record<string, string[] | string>;
 const reverseLookalikeData: Record<string, string> = {};
