@@ -51,10 +51,10 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                                 type: ComponentType.ChannelSelect,
                                 custom_id: "honeypot_channel",
                                 min_values: 1,
-                                max_values: manyHoneypots ? 5 : 1,
+                                max_values: manyHoneypots ? 10 : 1,
                                 placeholder: "#honeypot",
                                 channel_types: [ChannelType.GuildText, ChannelType.GuildVoice],
-                                default_values: channels.length > 0 ? channels.map(c => ({ id: c.channel_id, type: SelectMenuDefaultValueType.Channel })) : [],
+                                default_values: channels.length > 0 ? channels.slice(0, 10).map(c => ({ id: c.channel_id, type: SelectMenuDefaultValueType.Channel })) : [],
                                 required: true,
                             }
                         },

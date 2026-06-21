@@ -233,14 +233,17 @@ async function checkSetupAndWarn(api: API | API2, channelId: string, application
 
     // // also check if this channel can be seen by everyone (ie view channel permission for @everyone role), because if not then it defeats the purpose of honeypot
     // // since we just made the channel, we know there cant be any overides, so we can just check the everyone role permissions
-    // const everyoneRole = guild.roles.find(r => r.id === guild.id);
+    const everyoneRole = guild.roles.find(r => r.id === guild.id);
     // const canEveryoneViewChannel = everyoneRole?.permissions ? hasPermission(BigInt(everyoneRole?.permissions), PermissionFlagsBits.ViewChannel) : true;
 
-    if (anyRoleHasMostMembers || !canBan /*|| !canEveryoneViewChannel*/) {
+    const canEveryoneAttachFiles = everyoneRole?.permissions ? hasPermission(BigInt(everyoneRole?.permissions), PermissionFlagsBits.AttachFiles) : true;
+
+    if (anyRoleHasMostMembers || !canBan /*|| !canEveryoneViewChannel*/ || !canEveryoneAttachFiles) {
         let content = "";
         if (anyRoleHasMostMembers) content += "\n- There is a role that’s higher than the bot’s with >65% of the members";
         if (!canBan) content += "\n- The bot doesn’t have permission to ban members, which means it can’t softban anyone";
         // if (!canEveryoneViewChannel) content += "\n- The @everyone role can’t view the honeypot channel, which means most members can’t send any messages here";
+        if (!canEveryoneAttachFiles) content += "\n- The @everyone role can’t attach files here, which means many spam bots that use attachments won’t be caught";
 
         const msg = await api.channels.createMessage(channelId!, {
             components: [
