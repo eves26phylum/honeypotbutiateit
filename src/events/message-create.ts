@@ -99,7 +99,17 @@ const onMessage = async (
                     message_id: messageId,
                     guild_id: guildId,
                 }
-            }).catch(err => console.log(`Failed to forward message to log channel: ${err}`));
+            }).catch(err => {
+                if (err instanceof DiscordAPIError && (err.code === 160009 /** undocumented error code */)) {
+                    api.channels.createMessage(config.log_channel_id!, {
+                        content: `Would forward https://discord.com/channels/${guildId}/${channelId}/${messageId}, but the bot doesn't have permission to Read Message History in that channel.`,
+                        allowed_mentions: {},
+                    }).catch(err => console.error(styleText("dim", `Failed to send message about missing permissions to log channel: ${err}`)));
+                    console.log(styleText("dim", `Failed to forward message to log channel ${config.action}: ${err}`));
+                } else {
+                    console.log(`Failed to forward message to log channel: ${err}`);
+                }
+            });
         }
 
         let timeoutPromise = null as null | Promise<any>;
