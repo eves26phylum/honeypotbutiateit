@@ -92,7 +92,7 @@ const onMessage = async (
         const preActionAbort = AbortSignal.timeout(3500);
 
         let forwardPromise = null as null | Promise<any>;
-        if (HAS_MESSAGE_INTENT && config.experiments.includes("forward-message") && config.log_channel_id && messageId && msgType) {
+        if (HAS_MESSAGE_INTENT && config.experiments.includes("forward-message") && config.log_channel_id && messageId && msgType !== undefined) {
             // intentionally not awaited as in theory we can do DM and this at same time (and avoid extra wait-time)
             const forwardableMsgTypes = [MessageType.Default, MessageType.Reply, MessageType.ChatInputCommand, MessageType.ContextMenuCommand];
             if (forwardableMsgTypes.includes(msgType)) {
