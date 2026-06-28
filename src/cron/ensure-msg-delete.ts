@@ -169,9 +169,14 @@ const cron: Cron = {
                             offset += SEARCH_LIMIT;
                             hasMore = offset < totalResults;
                         } catch (err) {
-                            hadSearchError = true;
-                            console.log(`[ensure-msg-delete] Search failed for guild: ${err}`);
-                            break;
+                            if (err instanceof DiscordAPIError && (err.code === RESTJSONErrorCodes.MissingAccess || err.code === RESTJSONErrorCodes.MissingPermissions)) {
+                                console.log(styleText("dim", `[ensure-msg-delete] Missing perms to search guild, skipping... ${err}`));
+                                break;
+                            } else {
+                                hadSearchError = true;
+                                console.log(`[ensure-msg-delete] Search failed for guild: ${err}`);
+                                break;
+                            }
                         }
                     }
 
