@@ -138,7 +138,7 @@ const onMessage = async (
                         message_id: messageId,
                         guild_id: guildId,
                     }
-                }).catch(err => {
+                }, { signal: preActionAbort }).catch(err => {
                     const discordApiError = err instanceof DiscordAPIError ? err : null;
                     if (discordApiError && discordApiError.code === 160009 /** undocumented error code */) {
                         api.channels.createMessage(config.log_channel_id!, {
@@ -148,6 +148,8 @@ const onMessage = async (
                         console.log(styleText("dim", `Failed to forward message to log channel ${config.action}: ${err}`));
                     } else if (discordApiError && discordApiError.message.includes("MESSAGE_REFERENCE_UNKNOWN_MESSAGE")) {
                         console.log(styleText("dim", `Failed to forward message to log channel ${config.action}: ${err.toString().replace("\n", "; ")}`));
+                    } else if (`${err}` === "AbortError: The operation was aborted." || `${err}` === "Error: Request aborted manually") {
+                        console.log(styleText("dim", `Failed to forward message to log channel: ${err}`));
                     } else {
                         console.log(`Failed to forward message to log channel: ${err}`);
                     }
@@ -213,7 +215,7 @@ const onMessage = async (
 
         // we prob will win forwarding before the ban's delete comes into action, so no point delaying the ban to wait for msg to create (and not the biggest deal if it fails)
         // also if timeout fails, we don't want to wait too long before banning
-        await Promise.race([preActionPromise, dmMessage, timeoutPromise, forwardPromise].filter(p => !!p));
+        await Promise.race([preActionPromise, Promise.all([dmMessage, timeoutPromise, forwardPromise].filter(p => !!p))]);
 
         let failed: boolean | "permissions" | "admin" | "unban" = false;
         if (!permissionSkip) try {
