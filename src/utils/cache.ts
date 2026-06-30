@@ -68,16 +68,15 @@ export const invalidateGuildInfoCache = (guildId: string, redis?: Bun.RedisClien
   }
 }
 
-const threeDaysSeconds = 3 * 24 * 60 * 60;
+const daySeconds = 24 * 60 * 60;
 
 export const setDmChannelCache = (userId: string, channelId: string, redis: Bun.RedisClient) => {
-  redis.hsetex("user_dm_channel", "EX", threeDaysSeconds, "FIELDS", 1, userId, channelId);
+  redis.hsetex("user_dm_channel", "EX", daySeconds, "FIELDS", 1, userId, channelId);
 }
 export const getDmChannelCache = (userId: string, redis: Bun.RedisClient) => {
   return redis.hget("user_dm_channel", userId);
 }
 
-const daySeconds = 24 * 60 * 60;
 export const setSubscribedChannelCache = (guildId: string, channelIds: string[], redis: Bun.RedisClient) => {
   redis.hsetex("discord_ws_config:guild-channels", "EX", daySeconds, "FIELDS", 1, guildId, channelIds.join(","));
 }
