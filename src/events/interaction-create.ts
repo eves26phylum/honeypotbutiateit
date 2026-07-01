@@ -727,35 +727,50 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                 const existingMessages = await db.getHoneypotMessages(guildId);
                 await db.setHoneypotMessages(guildId, newMessages);
 
-                await Promise.allSettled(channels.map(async (msgChannel) => {
-                    if (!msgChannel.msg_id) return;
-                    const guildModeratedCount = await db.getModeratedCount(guildId, channels.length > 1 ? msgChannel.channel_id : null);
-                    try {
-                        await api.channels.editMessage(
-                            msgChannel.channel_id,
-                            msgChannel.msg_id,
-                            honeypotWarningMessage(guildModeratedCount, config?.action || 'softban', newMessages.warning_message)
-                        );
-                    } catch (err) {
-                        if (err instanceof DiscordAPIError && (err.code == RESTJSONErrorCodes.MissingAccess || err.code == RESTJSONErrorCodes.MissingPermissions)) {
-                            console.log(styleText('dim', `Error updating honeypot warning message (interaction handler): ${err}`));
-                            await api.interactions.followUp(interaction.id, interaction.token, {
-                                content: `I don't have access to the honeypot channel <#${msgChannel.channel_id}> to update the warning message. Please make sure I have access to that channel and try again (both View Channel and Send Messages permissions).\n-# Your custom messages have still been saved though.`,
-                                allowed_mentions: {},
-                                flags: MessageFlags.Ephemeral,
-                            });
-                        } else {
-                            console.log(`Error updating honeypot warning message (interaction handler): ${err}`);
-                            await api.interactions.followUp(interaction.id, interaction.token, {
-                                content: `There was a problem updating the honeypot warning message in <#${msgChannel.channel_id}>. Please check my permissions.\n-# Your custom messages have still been saved though.`,
-                                allowed_mentions: {},
-                                flags: MessageFlags.Ephemeral,
-                            });
-                        }
-                        return;
-                    }
-                }));
+                if (!config?.experiments.includes("no-warning-msg")) {
+                    const msgIds = new Map<string, string | null>();
+                    await Promise.allSettled(channels.map(async (msgChannel) => {
+                        const guildModeratedCount = await db.getModeratedCount(guildId, channels.length > 1 ? msgChannel.channel_id : null);
+                        const messageBody = honeypotWarningMessage(guildModeratedCount, config?.action || 'softban', newMessages.warning_message);
 
+                        try {
+                            if (!msgChannel.msg_id) {
+                                const msg = await api.channels.createMessage(msgChannel.channel_id, messageBody);
+                                msgIds.set(msgChannel.channel_id, msg.id);
+                            } else {
+                                try {
+                                    await api.channels.editMessage(msgChannel.channel_id, msgChannel.msg_id, messageBody);
+                                } catch {
+                                    const msg = await api.channels.createMessage(msgChannel.channel_id, messageBody);
+                                    msgIds.set(msgChannel.channel_id, msg.id);
+                                }
+                            }
+                        } catch (err) {
+                            if (err instanceof DiscordAPIError && (err.code == RESTJSONErrorCodes.MissingAccess || err.code == RESTJSONErrorCodes.MissingPermissions)) {
+                                console.log(styleText('dim', `Error updating honeypot warning message (interaction handler): ${err}`));
+                                await api.interactions.followUp(interaction.id, interaction.token, {
+                                    content: `I don't have access to the honeypot channel <#${msgChannel.channel_id}> to update the warning message. Please make sure I have access to that channel and try again (both View Channel and Send Messages permissions).\n-# Your custom messages have still been saved though.`,
+                                    allowed_mentions: {},
+                                    flags: MessageFlags.Ephemeral,
+                                });
+                            } else {
+                                console.log(`Error updating honeypot warning message (interaction handler): ${err}`);
+                                await api.interactions.followUp(interaction.id, interaction.token, {
+                                    content: `There was a problem updating the honeypot warning message in <#${msgChannel.channel_id}>. Please check my permissions and your custom message.\n-# Your custom messages have still been saved though.`,
+                                    allowed_mentions: {},
+                                    flags: MessageFlags.Ephemeral,
+                                });
+                            }
+                            return;
+                        }
+                    }));
+                    if (msgIds.size > 0) {
+                        await db.setHoneypotChannels(guildId, channels.map(c => ({
+                            channel_id: c.channel_id,
+                            msg_id: msgIds.get(c.channel_id) ?? c.msg_id,
+                        })));
+                    }
+                }
 
                 if (newMessages.dm_message && existingMessages?.dm_message !== newMessages.dm_message) {
                     const timeout = AbortSignal.timeout(10_000);

@@ -1,4 +1,4 @@
-import { type RESTPostAPIChannelMessageJSONBody, MessageFlags, ComponentType, ButtonStyle, type APIUser } from "discord-api-types/v10";
+import { type RESTPostAPIChannelMessageJSONBody, MessageFlags, ComponentType, ButtonStyle, type APIUser, type APIComponentInContainer } from "discord-api-types/v10";
 import type { HoneypotConfig } from "./db";
 
 export function honeypotWarningMessage(
@@ -13,6 +13,7 @@ export function honeypotWarningMessage(
     disabled: { text: 'no action (honeypot is disabled)', label: 'Triggers' }
   };
   const { text: actionText, label: labelText } = actionTextMap[action] || actionTextMap.ban!;
+  const { text: messageText, imageUrls } = customText ? extractPossibleImages(customText) : { text: null, imageUrls: null };
 
   return {
     flags: MessageFlags.IsComponentsV2,
@@ -20,13 +21,13 @@ export function honeypotWarningMessage(
     components: [
       {
         type: ComponentType.Container,
-        components: [
-          {
+        components: ([
+          (messageText || !imageUrls) ? {
             type: ComponentType.Section,
             components: [
               {
                 type: ComponentType.TextDisplay,
-                content: customText?.replace(/\{\{action(:text)?\}\}/g, actionText)
+                content: messageText?.replace(/\{\{action(:text)?\}\}/g, actionText)
                   || `## DO NOT SEND MESSAGES IN THIS CHANNEL\n\nThis channel is used to catch spam bots. Any messages sent here will result in **${actionText}**.`
               }
             ],
@@ -36,7 +37,11 @@ export function honeypotWarningMessage(
                 url: "https://honeypot.riskymh.dev/honeypot.png"
               }
             }
-          },
+          } as const : null,
+          (imageUrls && imageUrls.length > 0) ? {
+            type: ComponentType.MediaGallery,
+            items: imageUrls.map(url => ({ media: { url } }))
+          } as const : null,
           {
             type: ComponentType.ActionRow,
             components: [
@@ -50,7 +55,7 @@ export function honeypotWarningMessage(
               }
             ]
           }
-        ],
+        ] satisfies (APIComponentInContainer | null)[]).filter(e => !!e),
       },
     ]
   };
@@ -66,6 +71,7 @@ const pastTenseActionText = {
 } as const
 export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildName: string, discoverableLink: string | undefined, link: string, reinviteUrl: string | null, isAdmin = false, customText?: string | null, isExample = false): RESTPostAPIChannelMessageJSONBody {
   const actionText = pastTenseActionText[action] || '???unknown action???';
+  const { text: messageText, imageUrls } = customText ? extractPossibleImages(customText) : { text: null, imageUrls: null };
   return {
     flags: MessageFlags.IsComponentsV2,
     allowed_mentions: {},
@@ -74,12 +80,12 @@ export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildNam
         type: ComponentType.Container,
         accent_color: 0xFFD700,
         components: [
-          {
+          ...(!imageUrls || messageText ? [{
             type: ComponentType.Section,
             components: [
               {
                 type: ComponentType.TextDisplay,
-                content: customText
+                content: messageText
                   ?.replace(/\{\{action(:text)?\}\}/g, actionText)
                   .replace(/\{\{server:name:?\}\}/g, guildName)
                   .replace(/\{\{server:name:linked\}\}/g, discoverableLink ? `[${guildName}](${discoverableLink})` : guildName)
@@ -90,10 +96,12 @@ export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildNam
                     + (reinviteUrl ? `\n\nOnce you have sorted out how your account spammed, you can rejoin via ${reinviteUrl}` : "")
                   )
               },
-              {
-                type: ComponentType.TextDisplay,
-                content: `-# This is an automated message. Replies are not monitored.`
-              },
+              ...((!imageUrls || imageUrls.length == 0) ? [
+                {
+                  type: ComponentType.TextDisplay,
+                  content: `-# This is an automated message. Replies are not monitored.`
+                },
+              ] as const : []),
             ],
             accessory: {
               type: ComponentType.Thumbnail,
@@ -101,7 +109,17 @@ export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildNam
                 url: "https://honeypot.riskymh.dev/honeypot.png"
               }
             }
-          }
+          }] : []),
+          ...((imageUrls && imageUrls.length > 0) ? [
+            {
+              type: ComponentType.MediaGallery,
+              items: imageUrls.map(url => ({ media: { url } }))
+            },
+            {
+              type: ComponentType.TextDisplay,
+              content: `-# This is an automated message. Replies are not monitored.`
+            },
+          ] as const : []),
         ]
       },
       isExample ? {
@@ -162,3 +180,24 @@ export function logActionMessage(userId: string, honeypotChannelId: string, acti
 }
 
 export const defaultLogActionMessage = "{{user:mention}} was {{action:text}} for triggering the honeypot in {{honeypot:channel:mention}}\n-# User ID: `{{user:id}}`";
+
+
+const imageUrlRegex = /^https:\/\/[^\s\/]+\.[a-zA-Z]{2,}\/[^\s?#]*\.(?:png|jpg|jpeg|gif|webp|avif|mp4|mov)(?:[?#][^\s]*)?$/i;
+function extractPossibleImages(text: string): { text: string | null, imageUrls: string[] | null } {
+  if (!text) return { text: null, imageUrls: null };
+  const lines = text.split("\n");
+  const imageUrls: string[] = [];
+  let consumed = 0;
+  for (const raw of lines.toReversed()) {
+    const line = raw.trim();
+    if (!line) { consumed++; continue; }
+    if (!imageUrlRegex.test(line)) break;
+    imageUrls.push(line);
+    consumed++;
+  }
+  if (imageUrls.length > 0) {
+    const newText = lines.slice(0, lines.length - consumed).join("\n").trim();
+    return { text: newText || null, imageUrls: imageUrls.reverse() };
+  }
+  return { text, imageUrls: null };
+}
