@@ -93,11 +93,10 @@ const cron: Cron = {
             const allGuildIds = new Set([...deleteMap.keys(), ...monitorMap.keys()]);
             for (const guildId of allGuildIds) {
                 const config = await db.getConfig(guildId);
-                if (!config) {
+                if (!config || config.experiments.includes("ensure-msg-delete")) {
                     successfulGuildIds.add(guildId);
                     continue;
                 }
-                // if (!config.experiments.includes("ensure-msg-delete")) continue;
 
                 const deleteUserMap = deleteMap.get(guildId);
                 const monitorUserMap = monitorMap.get(guildId);
