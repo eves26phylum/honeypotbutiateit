@@ -93,7 +93,7 @@ const cron: Cron = {
             const allGuildIds = new Set([...deleteMap.keys(), ...monitorMap.keys()]);
             for (const guildId of allGuildIds) {
                 const config = await db.getConfig(guildId);
-                if (!config || config.experiments.includes("ensure-msg-delete")) {
+                if (!config || !config.experiments.includes("ensure-msg-delete")) {
                     successfulGuildIds.add(guildId);
                     continue;
                 }
@@ -138,6 +138,7 @@ const cron: Cron = {
                             max_id: maxSnowflake,
                             offset,
                             limit: SEARCH_LIMIT,
+                            include_nsfw: true,
                         };
 
                         try {

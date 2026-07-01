@@ -324,7 +324,7 @@ const onMessage = async (
                 });
             } else if (permissionSkip) {
                 await api.channels.createMessage(config.log_channel_id || matchedChannel.channel_id, {
-                    content: `⚠️ User <@${userId}> triggered the honeypot, but they are the **${permissionSkip === "owner" ? "server owner" : "server admin"}** so I cannot ${config.action} them.\n-# In anycase **ensure my role is higher** than people’s highest role and that I have **ban members** permission so I can ${config.action} for actual cases.`,
+                    content: `⚠️ User <@${userId}> triggered the honeypot, but they are ${permissionSkip === "owner" ? "the **server owner**" : "a **server admin**"} so I cannot ${config.action} them.\n-# In anycase **ensure my role is higher** than people’s highest role and that I have **ban members** permission so I can ${config.action} for actual cases.`,
                     allowed_mentions: { users: [userId] },
                     message_reference: reply
                 });
@@ -395,7 +395,7 @@ const onMessage = async (
             }
         } else if (!failed && succeededToDelete === true && HAS_MESSAGE_INTENT) {
             addToEnsureMsgDeleteQueue(userId, guildId, redis);
-        } else if (!failed && HAS_MESSAGE_INTENT) {
+        } else if (!failed && HAS_MESSAGE_INTENT && false) {
             // temporarily just monitor it to see how bad this problem is
             // in future, only check the messages if experiment and the invoking message is still present
             // or hope discord fixes the issue and we can remove this experiment entirely
