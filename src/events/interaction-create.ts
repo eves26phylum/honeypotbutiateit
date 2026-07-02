@@ -136,11 +136,10 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                 }
                 let selectedChannelIds: string[] = [];
 
-                const interactionCreatedAt = getDiscordDate(interaction.id).getTime();
                 let deferredPromise = false as false | Promise<true>;
                 const deferTimeout = setTimeout(() => {
                     deferredPromise = api.interactions.defer(interaction.id, interaction.token).then(() => true);
-                }, 2500 - (Date.now() - interactionCreatedAt));
+                }, 2500 - (Date.now() - getDiscordDate(interaction.id)));
 
                 const interactionReply = async (body: CreateInteractionResponseOptions) => {
                     if (await deferredPromise) {

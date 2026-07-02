@@ -7,6 +7,7 @@ import { CUSTOM_EMOJI_ID, HAS_MESSAGE_INTENT } from "../utils/constants";
 import { honeypotUserDMMessage, honeypotWarningMessage, logActionMessage } from "../utils/messages";
 import { DiscordAPIError } from "@discordjs/rest";
 import { styleText } from "node:util";
+import { getDiscordDate } from "../utils/tools";
 
 const handler: EventHandler<GatewayDispatchEvents.MessageCreate> = {
     event: GatewayDispatchEvents.MessageCreate,
@@ -149,6 +150,8 @@ const onMessage = async (
                     } else if (discordApiError && discordApiError.message.includes("MESSAGE_REFERENCE_UNKNOWN_MESSAGE")) {
                         console.log(styleText("dim", `Failed to forward message to log channel ${config.action}: ${err.toString().replace("\n", "; ")}`));
                     } else if (`${err}` === "AbortError: The operation was aborted." || `${err}` === "Error: Request aborted manually") {
+                        console.log(styleText("dim", `Failed to forward message to log channel: ${err}`));
+                    } else if (discordApiError && (discordApiError.code === RESTJSONErrorCodes.MissingAccess || discordApiError.code === RESTJSONErrorCodes.MissingPermissions)) {
                         console.log(styleText("dim", `Failed to forward message to log channel: ${err}`));
                     } else {
                         console.log(`Failed to forward message to log channel: ${err}`);
@@ -302,6 +305,16 @@ const onMessage = async (
         if (!failed && !permissionSkip) {
             await db.logModerateEvent(guildId, userId, matchedChannel.channel_id);
             redis?.publish("moderate_event", "+1");
+
+            // if it took >30sec from actual message invocation to now, add a log telling us
+            // its prob ratelimit, but something important to keep track of if it gets bad
+            const id = messageId || threadId || null;
+            if (id) {
+                const diffSeconds = Math.floor((Date.now() - getDiscordDate(id)) / 1000);
+                if (diffSeconds > 30) {
+                    console.log(styleText("dim", `Moderated user in ${diffSeconds}s from ${messageId ? "message" : "thread"} creation`));
+                }
+            }
         }
 
         // if they rejoin server, let them be punished again
