@@ -395,11 +395,6 @@ const onMessage = async (
             }
         } else if (!failed && succeededToDelete === true && HAS_MESSAGE_INTENT) {
             addToEnsureMsgDeleteQueue(userId, guildId, redis);
-        } else if (!failed && HAS_MESSAGE_INTENT && false) {
-            // temporarily just monitor it to see how bad this problem is
-            // in future, only check the messages if experiment and the invoking message is still present
-            // or hope discord fixes the issue and we can remove this experiment entirely
-            addToEnsureMsgDeleteQueue(userId, guildId, redis, undefined, true);
         }
     } catch (err) {
         console.error(`Error with MessageCreate handler: ${err}`);

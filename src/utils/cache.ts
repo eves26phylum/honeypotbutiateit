@@ -138,8 +138,8 @@ export const unsetIsAlreadyModerating = (guildId: string, userId: string, redis:
 
 // weird cache to try to ensure all messages are deleted
 const ensureMsgDeleteQueue = new Set<string>();
-export const addToEnsureMsgDeleteQueue = (userId: string, guildId: string, redis?: Bun.RedisClient, timestamp?: number, justMonitor = false) => {
-  const entry = `${timestamp ?? Date.now()}:${userId}:${guildId}${justMonitor ? ":monitor" : ""}`;
+export const addToEnsureMsgDeleteQueue = (userId: string, guildId: string, redis?: Bun.RedisClient, timestamp?: number) => {
+  const entry = `${timestamp ?? Date.now()}:${userId}:${guildId}`;
   if (redis) {
     return redis.sadd("ensure-msg-delete", entry);
   }
