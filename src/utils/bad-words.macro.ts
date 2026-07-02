@@ -1,7 +1,7 @@
 
 
 const url = "https://potentiallyoffensive.com/wp-content/uploads/2023/03/OffensiveWords-comma-separated-text.txt";
-const cacheFile = `${import.meta.dirname}/../node_modules/${Bun.hash(url)}.json`;
+const cacheFile = `${import.meta.dirname}/../../node_modules/${Bun.hash(url)}.json`;
 
 export default async function getBadWords(): Promise<string[]> {
     const file = Bun.file(cacheFile);
