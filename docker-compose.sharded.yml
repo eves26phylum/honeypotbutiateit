@@ -18,7 +18,7 @@ services:
        FORCE_COLOR: 1
      volumes:
         - redis:/redis
-     stop_grace_period: 20s
+     stop_grace_period: 40s
      deploy:
       # todo: make this possible, but rn it just makes double events 
       #  replicas: ${WS_REPLICAS:-1}
@@ -57,7 +57,7 @@ services:
      volumes:
         - data:/data
         - redis:/redis
-     stop_grace_period: 20s
+     stop_grace_period: 120s
      deploy:
        replicas: ${EVENTS_REPLICAS:-1}
        resources:
