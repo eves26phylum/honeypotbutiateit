@@ -281,7 +281,7 @@ export async function getGuildStats(guild_id: string): Promise<{ channel_id: str
 }
 
 export async function getGuildHasHoneypotHistory(guild_id: string): Promise<boolean> {
-  const [row] = await db`SELECT EXISTS (SELECT 1 FROM honeypot_events WHERE guild_id = ${guild_id} LIMIT 1 OFFSET 2) as has_history;`;
+  const [row] = await db`SELECT EXISTS (SELECT 1 FROM honeypot_events WHERE guild_id = ${guild_id}) as has_history`;
   return Boolean(row.has_history);
 }
 
