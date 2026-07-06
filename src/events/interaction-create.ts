@@ -760,7 +760,7 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                                         },
                                         {
                                             type: ComponentType.Button,
-                                            url: "https://discord.gg/BanFeVWyFP",
+                                            url: "https://discord.gg/wYZa4Fpwfy",
                                             style: ButtonStyle.Link,
                                             label: "Support Server"
                                         },
