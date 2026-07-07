@@ -88,13 +88,13 @@ async function channelRecreateExperiment(api: API | API2, guildId: string, chann
             await api.channels.deleteMessage(channelId, msg.id).catch(() => { });
         }
     } catch (err) {
-        console.log("Error occurred while sending warning message in recreated channel:", err);
+        console.log(`Error occurred while sending warning message in recreated channel: ${err}`);
         // its not the end of the day if we can't resend
     }
     try {
         await api.channels.delete(channelId, { reason: "Channel recreate experiment (replaced with new channel)" });
     } catch (err) {
-        console.log("Error occurred while deleting channel (recreate experiment):", err);
+        console.log(`Error occurred while deleting channel (recreate experiment): ${err}`);
         api.channels.createMessage(channelId, {
             content: `⚠️ This channel was supposed to be deleted and replaced with <#${newChannel.id}> for the "Channel Recreate" experiment, but I was unable to delete it. This is no longer a watched honeypot channel.`,
             allowed_mentions: {},

@@ -1,7 +1,7 @@
 import type { API } from "@discordjs/core";
 import type { API as API2 } from "@discordjs/core/http-only";
 import { GuildFeature, PermissionFlagsBits, type APIGuild } from "discord-api-types/v10";
-import { base64ToSlowflake, hasPermission, slowflakeToBase64 } from "./tools";
+import { base64ToSlowflake, hasPermission, snowflakeToBase64 } from "./tools";
 
 const yearSeconds = 365 * 24 * 60 * 60;
 
@@ -50,9 +50,9 @@ export const setGuildInfoCache = (guildId: string, guild: APIGuild, redis?: Bun.
   if (redis) {
     const cacheStr = JSON.stringify({
       n: info.name,
-      o: slowflakeToBase64(info.ownerId),
+      o: snowflakeToBase64(info.ownerId),
       d: info.isDiscoverable ? 1 : undefined,
-      a: info.adminRoles?.length ? info.adminRoles.map(slowflakeToBase64).join("|") : undefined
+      a: info.adminRoles?.length ? info.adminRoles.map(snowflakeToBase64).join("|") : undefined
     });
     redis.hsetex("guild_info", "EX", yearSeconds, "FIELDS", 1, guildId, cacheStr);
   } else {

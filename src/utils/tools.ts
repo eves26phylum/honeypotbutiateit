@@ -12,7 +12,7 @@ export function hasPermission(permissions: bigint, permissionBit: bigint) {
         || (permissions & PermissionFlagsBits.Administrator) === PermissionFlagsBits.Administrator;
 }
 
-export function slowflakeToBase64(slowflake: string | bigint): string {
+export function snowflakeToBase64(slowflake: string | bigint | number): string {
     const slowflakeBigInt = BigInt(slowflake);
     const buffer = new ArrayBuffer(8);
     new DataView(buffer).setBigUint64(0, slowflakeBigInt, false);
