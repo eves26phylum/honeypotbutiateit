@@ -69,7 +69,7 @@ const pastTenseActionText = {
   softban: 'kicked',
   disabled: '???it is disabled???'
 } as const
-export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildName: string, discoverableLink: string | undefined, link: string, reinviteUrl: string | null, isAdmin = false, customText?: string | null, isExample = false): RESTPostAPIChannelMessageJSONBody {
+export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildName: string, discoverableLink: string | undefined, link: string, reinviteUrl: string | null, isAdmin = false, customText?: string | null): RESTPostAPIChannelMessageJSONBody {
   const actionText = pastTenseActionText[action] || '???unknown action???';
   const { text: messageText, imageUrls } = customText ? extractPossibleImages(customText) : { text: null, imageUrls: null };
   return {
@@ -122,10 +122,7 @@ export function honeypotUserDMMessage(action: HoneypotConfig["action"], guildNam
           ] as const : []),
         ]
       },
-      isExample ? {
-        type: ComponentType.TextDisplay,
-        content: `-# This is an example message so you can see what your members will see`
-      } : customText ? {
+      customText ? {
         type: ComponentType.TextDisplay,
         content: `-# This is a custom message from the owners of "${guildName}".`
       } : isAdmin ? {

@@ -1,7 +1,7 @@
-import { ButtonStyle, ChannelType, ComponentType, GatewayDispatchEvents, InteractionType, MessageFlags, PermissionFlagsBits, RESTJSONErrorCodes, SelectMenuDefaultValueType, TextInputStyle, type APIInteractionDataResolvedChannel, type APIModalInteractionResponseCallbackData, type APISelectMenuOption, type RESTPostAPIChannelMessageJSONBody } from "discord-api-types/v10";
+import { ButtonStyle, ChannelType, ComponentType, GatewayDispatchEvents, InteractionType, MessageFlags, PermissionFlagsBits, RESTJSONErrorCodes, SelectMenuDefaultValueType, TextInputStyle, type APIContainerComponent, type APIInteractionDataResolvedChannel, type APIModalInteractionResponseCallbackData, type APISelectMenuOption, type RESTPostAPIChannelMessageJSONBody, type APITextDisplayComponent } from "discord-api-types/v10";
 import type { EventHandler } from "./events";
 import type { HoneypotConfig } from "../utils/db";
-import { honeypotWarningMessage, defaultHoneypotWarningMessage, defaultHoneypotUserDMMessage, defaultLogActionMessage, honeypotUserDMMessage, defaultHoneypotUserDMMessageReinvitePart } from "../utils/messages";
+import { honeypotWarningMessage, defaultHoneypotWarningMessage, defaultHoneypotUserDMMessage, defaultLogActionMessage, logActionMessage, honeypotUserDMMessage, defaultHoneypotUserDMMessageReinvitePart } from "../utils/messages";
 import { channelWarmerExperiment, randomChannelNameExperiment } from "../cron/experiments";
 import getBadWords from "../utils/bad-words.macro" with { type: "macro" };
 import { CUSTOM_EMOJI, CUSTOM_EMOJI_ID, HAS_MESSAGE_INTENT } from "../utils/constants";
@@ -468,7 +468,7 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                                 type: ComponentType.TextInput,
                                 custom_id: "honeypot_warning",
                                 style: TextInputStyle.Paragraph,
-                                min_length: 10,
+                                min_length: 25,
                                 max_length: 1500,
                                 required: false,
                                 value: messages?.warning_message || defaultHoneypotWarningMessage,
@@ -482,7 +482,7 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                                 type: ComponentType.TextInput,
                                 custom_id: "honeypot_dm_message",
                                 style: TextInputStyle.Paragraph,
-                                min_length: 10,
+                                min_length: 25,
                                 max_length: 1000,
                                 required: false,
                                 value: messages?.dm_message || getDmMessage(config, guild),
@@ -496,7 +496,7 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                                 type: ComponentType.TextInput,
                                 custom_id: "log_message",
                                 style: TextInputStyle.Paragraph,
-                                min_length: 10,
+                                min_length: 25,
                                 max_length: 500,
                                 required: false,
                                 value: messages?.log_message || defaultLogActionMessage,
@@ -591,50 +591,73 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                             content: "**Honeypot messages updated!**",
                         },
                         {
-                            type: ComponentType.TextDisplay,
-                            content: newMessages.warning_message ? "Warning Message" : "Warning Message: *(Using default)*",
+                            type: ComponentType.Section,
+                            components: [{
+                                type: ComponentType.TextDisplay,
+                                content: newMessages.warning_message ? "Honeypot Warning Message" : "Honeypot Warning Message\n-# *(Using default)*",
+                            }],
+                            accessory: {
+                                type: ComponentType.Button,
+                                style: ButtonStyle.Secondary,
+                                label: "Preview Warning",
+                                custom_id: newMessages.warning_message ? "preview_message:warning:#1" : "preview_message:warning",
+                            }
                         },
                         newMessages.warning_message && {
                             type: ComponentType.Container,
-                            components: [
-                                {
-                                    type: ComponentType.TextDisplay,
-                                    content: newMessages.warning_message
-                                }
-                            ],
+                            components: [{
+                                type: ComponentType.TextDisplay,
+                                content: newMessages.warning_message,
+                                id: 1
+                            }],
                         },
                         {
-                            type: ComponentType.TextDisplay,
-                            content: newMessages.dm_message ? "DM Message" : "DM Message: *(Using default)*",
+                            type: ComponentType.Section,
+                            components: [{
+                                type: ComponentType.TextDisplay,
+                                content: newMessages.dm_message ? "DM Message" : "DM Message\n-# *(Using default)*",
+                            }],
+                            accessory: {
+                                type: ComponentType.Button,
+                                style: ButtonStyle.Secondary,
+                                label: "Preview DM",
+                                custom_id: newMessages.dm_message ? "preview_message:dm:#2" : "preview_message:dm",
+                            }
                         },
                         newMessages.dm_message && {
                             type: ComponentType.Container,
-                            components: [
-                                {
-                                    type: ComponentType.TextDisplay,
-                                    content: newMessages.dm_message
-                                }
-                            ],
+                            components: [{
+                                type: ComponentType.TextDisplay,
+                                content: newMessages.dm_message,
+                                id: 2
+                            }],
                         },
                         {
-                            type: ComponentType.TextDisplay,
-                            content: newMessages.log_message ? "Log Message" : "Log Message: *(Using default)*",
+                            type: ComponentType.Section,
+                            components: [{
+                                type: ComponentType.TextDisplay,
+                                content: newMessages.log_message ? "Log Message" : "Log Message\n-# *(Using default)*",
+                            }],
+                            accessory: {
+                                type: ComponentType.Button,
+                                style: ButtonStyle.Secondary,
+                                label: "Preview Log",
+                                custom_id: newMessages.log_message ? "preview_message:log:#3" : "preview_message:log",
+                            }
                         },
                         newMessages.log_message && {
                             type: ComponentType.Container,
-                            components: [
-                                {
-                                    type: ComponentType.TextDisplay,
-                                    content: newMessages.log_message
-                                }
-                            ],
+                            components: [{
+                                type: ComponentType.TextDisplay,
+                                content: newMessages.log_message,
+                                id: 3
+                            }],
                         },
                     ].filter(e => !!e),
 
                     allowed_mentions: {},
                 } as RESTPostAPIChannelMessageJSONBody);
 
-                const existingMessages = await db.getHoneypotMessages(guildId);
                 await db.setHoneypotMessages(guildId, newMessages);
 
                 if (!config?.experiments.includes("no-warning-msg")) {
@@ -681,43 +704,6 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                         })));
                     }
                 }
-
-                if (newMessages.dm_message && existingMessages?.dm_message !== newMessages.dm_message) {
-                    const timeout = AbortSignal.timeout(10_000);
-                    const userId = (interaction.user || interaction.member?.user)?.id;
-                    if (userId) {
-                        try {
-                            const server = await getGuildInfo(api, guildId, timeout, redis);
-                            let dmChannel = redis && await getDmChannelCache(userId, redis);
-                            if (!dmChannel) {
-                                ({ id: dmChannel } = await api.users.createDM(userId, { signal: timeout }));
-                                if (redis) setDmChannelCache(userId, dmChannel, redis);
-                            }
-                            const reinviteCode = config?.experiments.includes("reinvite") && await db.getReinvite(guildId);
-                            await api.channels.createMessage(
-                                dmChannel,
-                                honeypotUserDMMessage(
-                                    config?.action || "softban",
-                                    server.name ?? guildId!,
-                                    server.isDiscoverable ? `https://discord.com/servers/${guildId}` : undefined,
-                                    `https://discord.com/channels/${guildId}/${channels[0]?.channel_id || ""}/${channels[0]?.msg_id || ""}`,
-                                    reinviteCode ? `https://discord.gg/${reinviteCode}` : null,
-                                    false,
-                                    newMessages.dm_message,
-                                    true
-                                ),
-                                { signal: timeout }
-                            );
-                        } catch (err) {
-                            if (err instanceof DiscordAPIError && (err.code === RESTJSONErrorCodes.CannotSendMessagesToThisUser || err.code === RESTJSONErrorCodes.CannotSendMessagesToThisUserDueToHavingNoMutualGuilds)) {
-                                console.log(styleText("dim", `Error sending example DM message: ${err}`));
-                            } else {
-                                console.log(`Error sending example DM message: ${err}`);
-                            }
-                        }
-                    }
-                }
-
                 return;
             }
 
@@ -932,7 +918,60 @@ const handler: EventHandler<GatewayDispatchEvents.InteractionCreate> = {
                 });
             }
 
-            return;
+            // a way to see if the templates work for custom messages, without having to trigger the honeypot
+            else if (guildId && interaction.type === InteractionType.MessageComponent && interaction.data.custom_id.startsWith("preview_message:")) {
+                const [type, id] = interaction.data.custom_id.split(":").slice(1);
+                let messageContent: string | null = null;
+                if (id?.startsWith("#")) {
+                    const targetId = parseInt(id.slice(1));
+                    if (!isNaN(targetId)) {
+                        const found = interaction.message?.components
+                            ?.filter((c): c is APIContainerComponent => c.type === ComponentType.Container)
+                            ?.flatMap(c => c.components)
+                            ?.find((c): c is APITextDisplayComponent => c.type === ComponentType.TextDisplay && c.id === targetId);
+                        messageContent = found?.content ?? null;
+                    }
+                }
+
+                const [config, channels] = await Promise.all([
+                    db.getConfig(guildId),
+                    db.getChannels(guildId),
+                ]);
+
+                const replyEphemeral = (msg: RESTPostAPIChannelMessageJSONBody) =>
+                    api.interactions.reply(interaction.id, interaction.token, {
+                        ...msg,
+                        flags: (msg.flags ?? 0) | MessageFlags.Ephemeral,
+                    });
+
+                if (type === "warning") {
+                    await replyEphemeral(honeypotWarningMessage(0, config?.action || "softban", messageContent));
+                } else if (type === "dm") {
+                    const server = await getGuildInfo(api, guildId, AbortSignal.timeout(1000), redis).catch(() => null);
+                    const reinviteCode = config?.experiments?.includes("reinvite") && await db.getReinvite(guildId);
+                    const channelLink = channels?.[0] ? `https://discord.com/channels/${guildId}/${channels[0].channel_id}/${channels[0].msg_id ?? ""}` : `https://discord.com/channels/${guildId}`;
+                    await replyEphemeral(honeypotUserDMMessage(
+                        config?.action || "softban",
+                        server?.name ?? guildId,
+                        server?.isDiscoverable ? `https://discord.com/servers/${guildId}` : undefined,
+                        channelLink,
+                        reinviteCode ? `https://discord.gg/${reinviteCode}` : null,
+                        false,
+                        messageContent
+                    ));
+                } else if (type === "log") {
+                    const userId = interaction.member?.user.id || interaction.user?.id || "0";
+                    const channelId = channels?.[0]?.channel_id || "0";
+                    await replyEphemeral(logActionMessage(userId, channelId, config?.action || "softban", messageContent, 0));
+                } else {
+                    await replyEphemeral({
+                        content: "Unknown message type for preview.",
+                        allowed_mentions: {},
+                    });
+                }
+
+                return;
+            }
         } catch (err) {
             let interactionInfo = "";
             if (interaction.type === InteractionType.ApplicationCommand) {
