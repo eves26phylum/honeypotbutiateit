@@ -1022,8 +1022,8 @@ function validateConfigPermissions(
                 `I need the Read Message History permission in <#${id}> to enable the “Forward Message” experiment.`);
         }
         if (config.experiments.includes("ensure-msg-delete")) {
-            need(hasPermission(appPerms, PermissionFlagsBits.ManageMessages),
-                `I need the Manage Messages permission in <#${id}> (and other channels) to enable the “Ensure Message Delete” experiment.`);
+            need(hasPermission(appPerms, PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ReadMessageHistory),
+                `I need the Manage Messages and Read Message History permissions in <#${id}> (and other channels) to enable the “Ensure Message Delete” experiment.`);
         }
     }
 

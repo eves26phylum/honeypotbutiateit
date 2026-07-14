@@ -138,7 +138,8 @@ const onMessage = async (
         await Promise.all([
             logMessage(api, db, config, userId, guildId, matchedChannel, customMessages.log_message, moderatedCount, failed, permissionSkip),
             updateWarning(api, db, config, matchedChannel, moderatedCount, customMessages.warning_message, guildId),
-            HAS_MESSAGE_INTENT && config.experiments.includes("ensure-msg-delete") ? addToEnsureMsgDeleteQueue(userId, guildId, redis) : null,
+            HAS_MESSAGE_INTENT && config.experiments.includes("ensure-msg-delete") && failed === false
+                ? addToEnsureMsgDeleteQueue(userId, guildId, redis) : null,
         ]);
     } catch (err) {
         console.error(`Error with MessageCreate handler: ${err}`);
